@@ -1,19 +1,36 @@
-import os
-import json
-import base64
 from urllib.parse import urlparse
 from .publisher import Publisher
 from .subscriber import Subscriber
 from .parameter import Parameter
 from .readme import Readme
 from .manifest import Manifest
+import asyncio
+import json
+import base64
+import os
 import pkg_resources
 
 class Extension:
     def __init__(self, token=None):
-        token = token or os.environ.get('TALKOPS_TOKEN')
-        if token:
-            mercure = json.loads(base64.b64decode(token).decode())
+        self._callbacks = {}
+        self._category = None
+        self._demo = False
+        self._features = []
+        self._functions = []
+        self._function_schemas = []
+        self._icon = None
+        self._installation_steps = []
+        self._instructions = None
+        self._name = None
+        self._parameters = []
+        self._software_version = None
+        self._token = token or os.environ.get('TALKOPS_TOKEN')
+        self._website = None
+
+    async def _setup(self):
+        await asyncio.sleep(0.5)
+        if self._token:
+            mercure = json.loads(base64.b64decode(self._token).decode())
             self._publisher = Publisher(
                 lambda: {'mercure': mercure},
                 lambda: {
@@ -43,7 +60,7 @@ class Extension:
                 }
             )
 
-        if os.environ.get('NODE_ENV') == 'development':
+        if os.environ.get('ENV') == 'development':
             Readme(
                 lambda: {
                     'features': self._features,
@@ -59,26 +76,16 @@ class Extension:
                     'name': self._name,
                     'sdk': {
                         'name': 'python',
-                        'version': '2.14.1',
+                        'version': pkg_resources.get_distribution('talkops').version,
                     },
                     'softwareVersion': self._software_version,
                     'website': self._website,
                 }
             )
 
-        self._callbacks = {}
-        self._category = None
-        self._demo = False
-        self._features = []
-        self._functions = []
-        self._function_schemas = []
-        self._icon = None
-        self._installation_steps = []
-        self._instructions = None
-        self._name = None
-        self._parameters = []
-        self._software_version = None
-        self._website = None
+    def start(self):
+        asyncio.run(self._setup())
+        return self
 
     def on(self, event_type, callback):
         if event_type not in self._get_event_types():
@@ -155,37 +162,55 @@ class Extension:
         return self
 
     def set_function_schemas(self, function_schemas):
-        if not isinstance(function_schemas, list):
-            raise ValueError('function_schemas must be an array.')
+        if (
+            not isinstance(function_schemas, list) or
+            not all(isinstance(schema, dict) and schema is not None for schema in function_schemas)
+        ):
+            raise ValueError('functionSchemas must be an array of non-null objects.')
         self._function_schemas = function_schemas
         return self
 
     def set_functions(self, functions):
-        if not isinstance(functions, list):
-            raise ValueError('functions must be an array.')
+        if (
+            not isinstance(functions, list) or
+            not all(callable(fn) for fn in functions) or
+            not all(hasattr(fn, '__name__') and fn.__name__.strip() for fn in functions)
+        ):
+            raise ValueError('functions must be an array of named functions.')
         self._functions = functions
         return self
 
     def enable_alarm(self):
-        self._publisher.enable_alarm()
+        self._publisher.publish_event({'type': 'alarm'})
         return self
 
     def send_medias(self, medias):
-        self._publisher.send_medias(medias)
+        if not isinstance(medias, list):
+            medias = [medias]
+        if not all(isinstance(media, Media) for media in medias):
+            raise ValueError("medias must be a list of Media instances.")
+        self._publisher.publish_event({
+            'type': 'medias',
+            'medias': [media.to_json() for media in medias]
+        })
         return self
 
     def send_message(self, text):
-        self._publisher.send_message(text)
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError('text must be a non-empty string.')
+        self._publisher.publish_event({ 'type': 'message', 'text': text })
         return self
 
     def send_notification(self, text):
-        self._publisher.send_notification(text)
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError('text must be a non-empty string.')
+        self._publisher.publish_event({ 'type': 'notification', 'text': text })
         return self
-
-    def _get_event_types(self):
-        with open(os.path.join(os.path.dirname(__file__), 'event_types.json'), 'r') as f:
-            return json.load(f)
 
     def _get_categories(self):
         with open(os.path.join(os.path.dirname(__file__), 'categories.json'), 'r') as f:
+            return json.load(f)
+
+    def _get_event_types(self):
+        with open(os.path.join(os.path.dirname(__file__), 'event-types.json'), 'r') as f:
             return json.load(f)

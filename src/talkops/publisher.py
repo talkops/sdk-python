@@ -11,8 +11,8 @@ class Publisher:
         self._use_state = use_state
         self._last_event_state = None
         self._last_ping_at = None
-        threading.Timer(0.9, lambda: self._publish_data(json.dumps({'type': 'init'}))).start()
-        threading.Timer(1.0, self._publish_state).start()
+        threading.Timer(0.4, lambda: self._publish_data(json.dumps({'type': 'init'}))).start()
+        threading.Timer(0.5, self._publish_state).start()
         self._original_stdout_write = sys.stdout.write
         self._original_stderr_write = sys.stderr.write
         def stdout_wrapper(chunk):
@@ -23,30 +23,31 @@ class Publisher:
             return self._original_stdout_write(chunk)
 
         def stderr_wrapper(chunk):
-            self.publish_event({
-                'type': 'stderr',
-                'data': chunk.strip()
-            })
+            if b"KeyboardInterrupt" not in chunk:
+                self.publish_event({
+                    'type': 'stderr',
+                    'data': chunk.strip()
+                })
             return self._original_stderr_write(chunk)
 
         sys.stdout.write = stdout_wrapper
         sys.stderr.write = stderr_wrapper
 
-    async def publish_state(self):
+    def publish_state(self):
         event = {'type': 'state', 'state': self._use_state()}
         self._last_event_state = json.dumps(event)
-        await self.publish_event(event)
+        self.publish_event(event)
 
     def on_ping(self):
         self._last_ping_at = time.time() * 1000
         self.publish_event({'type': 'pong'})
 
-    async def publish_event(self, event):
+    def publish_event(self, event):
         if self._last_ping_at and self._last_ping_at < (time.time() * 1000 - 6000):
             return
-        await self._publish_data(json.dumps(event))
+        self._publish_data(json.dumps(event))
 
-    async def _publish_data(self, data):
+    def _publish_data(self, data):
         config = self._use_config()
         response = requests.post(
             config['mercure']['url'],
@@ -61,11 +62,11 @@ class Publisher:
         )
         response.raise_for_status()
 
-    async def _publish_state(self):
+    def _publish_state(self):
         event = {'type': 'state', 'state': self._use_state()}
         last_event_state = json.dumps(event)
         if self._last_event_state != last_event_state:
-            await self.publish_event(event)
+            self.publish_event(event)
             self._last_event_state = last_event_state
         threading.Timer(1.0, self._publish_state).start()
 

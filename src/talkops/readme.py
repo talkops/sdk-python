@@ -5,7 +5,6 @@ from jinja2 import Environment, FileSystemLoader
 class Readme:
     def __init__(self, getter):
         self._getter = getter
-        time.sleep(0.5)
         self._generate()
 
     def _generate(self):

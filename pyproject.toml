@@ -1,0 +1,12 @@
+[project]
+name = "talkops"
+version = "1.0.0"
+description = "TalkOps SDK"
+authors = [{ name = "PicoUX" }]
+license = "MIT"
+requires-python = ">=3.7"
+dependencies = [
+    "jinja2>=3.1.6",
+    "requests>=2.32.3",
+    "sseclient-py>=1.8.0"
+]

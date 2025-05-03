@@ -1,10 +1,13 @@
+import asyncio
 import json
-import sseclient
-import threading
-import requests
-import re
-from urllib.parse import quote
 import os
+import re
+import requests
+import sseclient
+import sys
+import threading
+import time
+from urllib.parse import quote
 
 class Subscriber:
     def __init__(self, use_config):
@@ -51,12 +54,11 @@ class Subscriber:
                     self._on_event(json.loads(event.data))
 
             except Exception as e:
-                print(f"Error in subscriber: {e}")
+                print(f"Error in subscriber: {e}", file=sys.stderr)
                 if self._running:
-                    import time
                     time.sleep(5)
 
-    async def _on_event(self, event):
+    def _on_event(self, event):
         config = self._use_config()
         if event['type'] == 'ping':
             config['publisher'].on_ping()
@@ -65,17 +67,18 @@ class Subscriber:
             for fn in config['functions']:
                 if fn.__name__ != event['name']:
                     continue
-                match = re.match(r'\(([^)]*)\)', fn.__code__.co_varnames[:fn.__code__.co_argcount])
-                arguments_list = []
-                if match:
-                    param_names = [p.strip() for p in match.group(1).split(',')]
-                    arguments_list = [
-                        event['args'].get(name) or event['defaultArgs'].get(name)
-                        for name in param_names
-                    ]
-                event['output'] = await fn(*arguments_list)
+                arguments_list = [
+                    event['args'].get(name) or event['defaultArgs'].get(name)
+                    for name in fn.__code__.co_varnames
+                ]
+                output = fn(*arguments_list)
+                if asyncio.iscoroutine(output):
+                    output = asyncio.run(output)
+                event['output'] = output
                 config['publisher'].publish_event(event)
                 return
+            print(f'Function {fn.__name__} not found.', file=sys.stderr)
+            return
         if event['type'] == 'boot':
             for name, value in event['parameters'].items():
                 for parameter in config['parameters']:
@@ -94,13 +97,11 @@ class Subscriber:
                 return
         if event['type'] in self._get_event_types() and event['type'] in config['callbacks']:
             callback = config['callbacks'][event['type']]
-            match = re.match(r'\(([^)]*)\)', callback.__code__.co_varnames[:callback.__code__.co_argcount])
-            arguments_list = []
-            if match:
-                param_names = [p.strip() for p in match.group(1).split(',')]
-                arguments_list = [event['args'].get(name) for name in param_names]
-            await callback(*arguments_list)
+            arguments_list = [event['args'].get(name) for name in callback.__code__.co_varnames]
+            output = callback(*arguments_list)
+            if asyncio.iscoroutine(output):
+                output = asyncio.run(output)
 
     def _get_event_types(self):
-        with open(os.path.join(os.path.dirname(__file__), 'event_types.json'), 'r') as f:
+        with open(os.path.join(os.path.dirname(__file__), 'event-types.json'), 'r') as f:
             return json.load(f)
