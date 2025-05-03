@@ -4,11 +4,12 @@ from .subscriber import Subscriber
 from .parameter import Parameter
 from .readme import Readme
 from .manifest import Manifest
+from .media import Media
 import asyncio
 import json
 import base64
 import os
-import pkg_resources
+from importlib.metadata import version
 
 class Extension:
     def __init__(self, token=None):
@@ -43,7 +44,7 @@ class Extension:
                     'parameters': self._parameters,
                     'sdk': {
                         'name': 'python',
-                        'version': pkg_resources.get_distribution('talkops').version,
+                        'version': version('talkops'),
                     },
                     'softwareVersion': self._software_version,
                     'functionSchemas': self._function_schemas,
@@ -76,7 +77,7 @@ class Extension:
                     'name': self._name,
                     'sdk': {
                         'name': 'python',
-                        'version': pkg_resources.get_distribution('talkops').version,
+                        'version': version('talkops'),
                     },
                     'softwareVersion': self._software_version,
                     'website': self._website,
