@@ -25,11 +25,16 @@ class Extension:
         self._instructions = None
         self._name = None
         self._parameters = []
+        self._publisher = None
         self._software_version = None
+        self._started = False
         self._token = token or os.environ.get('TALKOPS_TOKEN')
         self._website = None
 
     async def _setup(self):
+        if self._started:
+            return
+        self._started = True
         await asyncio.sleep(0.5)
         if self._token:
             mercure = json.loads(base64.b64decode(self._token).decode())

@@ -1,9 +1,9 @@
+from urllib.parse import urlencode
 import json
 import requests
 import time
 import sys
 import threading
-from urllib.parse import urlencode
 
 class Publisher:
     def __init__(self, use_config, use_state):
@@ -11,8 +11,6 @@ class Publisher:
         self._use_state = use_state
         self._last_event_state = None
         self._last_ping_at = None
-        threading.Timer(0.4, lambda: self._publish_data(json.dumps({'type': 'init'}))).start()
-        threading.Timer(0.5, self._publish_state).start()
         self._original_stdout_write = sys.stdout.write
         self._original_stderr_write = sys.stderr.write
         def stdout_wrapper(chunk):
@@ -21,7 +19,6 @@ class Publisher:
                 'data': chunk.strip()
             })
             return self._original_stdout_write(chunk)
-
         def stderr_wrapper(chunk):
             if b"KeyboardInterrupt" not in chunk:
                 self.publish_event({
@@ -29,9 +26,10 @@ class Publisher:
                     'data': chunk.strip()
                 })
             return self._original_stderr_write(chunk)
-
         sys.stdout.write = stdout_wrapper
         sys.stderr.write = stderr_wrapper
+        self._publish_data(json.dumps({'type': 'init'}))
+        threading.Timer(0.1, self._publish_state).start()
 
     def publish_state(self):
         event = {'type': 'state', 'state': self._use_state()}
