@@ -1,1 +1,2 @@
-include talkops/data/*
+graft data
+include *.py
