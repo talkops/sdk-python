@@ -1,1 +1,1 @@
-recursive-include talkops/data *
+recursive-include talkops *
