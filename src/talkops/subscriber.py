@@ -1,3 +1,5 @@
+from importlib.resources import files
+from urllib.parse import quote
 import asyncio
 import json
 import os
@@ -7,7 +9,6 @@ import sseclient
 import sys
 import threading
 import time
-from urllib.parse import quote
 
 class Subscriber:
     def __init__(self, use_config):
@@ -103,5 +104,5 @@ class Subscriber:
                 output = asyncio.run(output)
 
     def _get_event_types(self):
-        with open(os.path.join(os.path.dirname(__file__), 'event-types.json'), 'r') as f:
+        with files('talkops.data').joinpath('event-types.json').open('r', encoding='utf-8') as f:
             return json.load(f)

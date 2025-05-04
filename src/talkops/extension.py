@@ -1,3 +1,5 @@
+from importlib.resources import files
+from importlib.metadata import version
 from urllib.parse import urlparse
 from .publisher import Publisher
 from .subscriber import Subscriber
@@ -9,7 +11,6 @@ import asyncio
 import json
 import base64
 import os
-from importlib.metadata import version
 
 class Extension:
     def __init__(self, token=None):
@@ -209,9 +210,9 @@ class Extension:
         return self
 
     def _get_categories(self):
-        with open(os.path.join(os.path.dirname(__file__), 'categories.json'), 'r') as f:
+        with files('talkops.data').joinpath('categories.json').open('r', encoding='utf-8') as f:
             return json.load(f)
 
     def _get_event_types(self):
-        with open(os.path.join(os.path.dirname(__file__), 'event-types.json'), 'r') as f:
+        with files('talkops.data').joinpath('event-types.json').open('r', encoding='utf-8') as f:
             return json.load(f)
