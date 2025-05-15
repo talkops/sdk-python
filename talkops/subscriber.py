@@ -1,5 +1,4 @@
-from importlib.resources import files
-from sseclient import SSEClient
+from aiohttp_sse_client.client import EventSource
 from urllib.parse import quote
 import asyncio
 import json
@@ -9,25 +8,27 @@ import nest_asyncio
 class Subscriber:
     def __init__(self, use_config):
         self._use_config = use_config
-        self._subscribe()
-
-    def _subscribe(self):
         nest_asyncio.apply()
+        asyncio.run(self._subscribe())
+
+    async def _subscribe(self):
         config = self._use_config()
         mercure = config['mercure']
-        messages = SSEClient(
-            f"{mercure['url']}?topic={quote(mercure['subscriber']['topic'])}",
-            headers={
-                'Authorization': f"Bearer {mercure['subscriber']['token']}"
-            }
-        )
-        for message in messages:
+
+        while True:
             try:
-                event = json.loads(message.data)
-            except json.JSONDecodeError as e:
-                print(f"Failed to decode JSON: {e}", file=sys.stderr)
-                continue
-            self._on_event(event)
+                async with EventSource(
+                    url=f"{mercure['url']}?topic={quote(mercure['subscriber']['topic'])}",
+                    headers={
+                        'Authorization': f"Bearer {mercure['subscriber']['token']}"
+                    },
+                    max_connect_retry=9999
+                ) as event_source:
+                    async for event in event_source:
+                        self._on_event(json.loads(event.data))
+            except Exception as e:
+                print(e)
+                await asyncio.sleep(5)
 
     def _on_event(self, event):
         config = self._use_config()

@@ -31,15 +31,9 @@ class Extension:
         self._started = False
         self._token = token or os.environ.get('TALKOPS_TOKEN')
         self._website = None
-        self._setup()
 
-    def _setup(self):
-        if self._started:
-            return
-        self._started = True
-        print("test1")
+    async def _setup(self):
         await asyncio.sleep(0.5)
-        print("test2")
         if self._token:
             mercure = json.loads(base64.b64decode(self._token).decode())
             self._publisher = Publisher(
@@ -93,11 +87,12 @@ class Extension:
                     'website': self._website,
                 }
             )
-        while True:
-            await asyncio.sleep(1)
 
     def start(self):
-        self._setup()
+        if self._started:
+            return
+        self._started = True
+        asyncio.run(self._setup())
         return self
 
     def on(self, event_type, callback):
