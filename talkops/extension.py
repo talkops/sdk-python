@@ -11,6 +11,7 @@ import asyncio
 import json
 import base64
 import os
+import time
 
 class Extension:
     def __init__(self, token=None):
@@ -30,12 +31,15 @@ class Extension:
         self._started = False
         self._token = token or os.environ.get('TALKOPS_TOKEN')
         self._website = None
+        self._setup()
 
-    async def _setup(self):
+    def _setup(self):
         if self._started:
             return
         self._started = True
+        print("test1")
         await asyncio.sleep(0.5)
+        print("test2")
         if self._token:
             mercure = json.loads(base64.b64decode(self._token).decode())
             self._publisher = Publisher(
@@ -47,7 +51,7 @@ class Extension:
                     'installationSteps': self._installation_steps,
                     'instructions': self._instructions,
                     'name': self._name,
-                    'parameters': self._parameters,
+                    'parameters': [p.to_json() for p in self._parameters],
                     'sdk': {
                         'name': 'python',
                         'version': version('talkops'),
@@ -89,9 +93,11 @@ class Extension:
                     'website': self._website,
                 }
             )
+        while True:
+            await asyncio.sleep(1)
 
     def start(self):
-        asyncio.run(self._setup())
+        self._setup()
         return self
 
     def on(self, event_type, callback):

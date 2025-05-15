@@ -25,8 +25,8 @@ class Parameter:
             raise ValueError('name expected uppercase letters, numbers, and underscores.')
         self._name = name
         self._description = None
-        self._value = None
-        self._default_value = None
+        self._value = ''
+        self._default_value = ''
         self._available_values = []
         self._possible_values = []
         self._optional = False
@@ -69,14 +69,14 @@ class Parameter:
         return os.environ.get(self._name) or self._value or self._default_value
 
     def set_value(self, value):
-        if value is not None and (not isinstance(value, str) or not value.strip()):
-            raise ValueError('value must be a non-empty string.')
+        if not isinstance(value, str):
+            raise ValueError('value must be a string.')
         self._value = value
         return self
 
     @property
     def has_value(self):
-        return self.value is not None and self.value != ''
+        return self.value != ''
 
     def set_available_values(self, available_values):
         if not isinstance(available_values, list) or not available_values:
