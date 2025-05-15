@@ -1,63 +1,31 @@
 from importlib.resources import files
+from sseclient import SSEClient
 from urllib.parse import quote
 import asyncio
 import json
-import os
-import re
 import requests
-import sseclient
 import sys
-import threading
 import time
 
 class Subscriber:
     def __init__(self, use_config):
         self._use_config = use_config
-        self._thread = None
-        self._running = False
-        self._start()
-
-    def _start(self):
-        if self._thread is not None:
-            return
-
-        self._running = True
-        self._thread = threading.Thread(target=self._subscribe)
-        self._thread.daemon = True
-        self._thread.start()
-
-    def stop(self):
-        if self._thread is None:
-            return
-
-        self._running = False
-        self._thread.join()
-        self._thread = None
+        self._subscribe()
 
     def _subscribe(self):
-        while self._running:
-            try:
-                config = self._use_config()
-                mercure = config['mercure']
-                response = requests.get(
-                    f"{mercure['url']}?topic={quote(mercure['subscriber']['topic'])}",
-                    headers={
-                        'Authorization': f"Bearer {mercure['subscriber']['token']}",
-                    },
-                    stream=True,
-                )
-                response.raise_for_status()
-
-                client = sseclient.SSEClient(response)
-                for event in client.events():
-                    if not self._running:
-                        break
-                    self._on_event(json.loads(event.data))
-
-            except Exception as e:
-                print(f"Error in subscriber: {e}", file=sys.stderr)
-                if self._running:
-                    time.sleep(5)
+        config = self._use_config()
+        mercure = config['mercure']
+        try:
+            messages = SSEClient(
+                f"{mercure['url']}?topic={quote(mercure['subscriber']['topic'])}",
+                headers={
+                    'Authorization': f"Bearer {mercure['subscriber']['token']}",
+                }
+            )
+            for message in messages:
+                self._on_event(json.loads(message.data))
+        except Exception as e:
+            print(e)
 
     def _on_event(self, event):
         config = self._use_config()
@@ -96,7 +64,7 @@ class Subscriber:
             config['publisher'].publish_state()
             if not ready:
                 return
-        if event['type'] in self._get_event_types() and event['type'] in config['callbacks']:
+        if event['type'] in config['callbacks']:
             callback = config['callbacks'][event['type']]
             arguments_list = [event['args'].get(name) for name in callback.__code__.co_varnames]
             output = callback(*arguments_list)

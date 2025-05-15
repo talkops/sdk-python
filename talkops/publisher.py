@@ -29,7 +29,7 @@ class Publisher:
         sys.stdout.write = stdout_wrapper
         sys.stderr.write = stderr_wrapper
         self._publish_data(json.dumps({'type': 'init'}))
-        threading.Timer(0.1, self._publish_state).start()
+        threading.Timer(0.2, self._publish_state).start()
 
     def publish_state(self):
         event = {'type': 'state', 'state': self._use_state()}
