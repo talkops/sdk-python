@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='talkops',
-    version='1.3.0',
+    version='1.3.1',
     author='PicoUX',
     description="TalkOps SDK",
     long_description=open('README.md',encoding='utf-8').read(),
@@ -16,7 +16,7 @@ setup(
         'Issues': 'https://github.com/talkops/sdk-python/issues',
         'Source': 'https://github.com/talkops/sdk-python',
     },
-    install_requires=['aiohttp-sse-client', 'jinja2', 'nest_asyncio', 'requests'],
+    install_requires=['aiohttp-sse-client', 'jinja2', 'nest_asyncio'],
     keywords=['sdk'],
     classifiers=[
       "Programming Language :: Python :: 3",

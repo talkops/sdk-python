@@ -10,8 +10,8 @@ from .media import Media
 import asyncio
 import json
 import base64
+import nest_asyncio
 import os
-import time
 
 class Extension:
     def __init__(self, token=None):
@@ -29,42 +29,12 @@ class Extension:
         self._publisher = None
         self._software_version = None
         self._started = False
+        self._subscriber = None
         self._token = token or os.environ.get('TALKOPS_TOKEN')
         self._website = None
 
     async def _setup(self):
         await asyncio.sleep(0.5)
-        if self._token:
-            mercure = json.loads(base64.b64decode(self._token).decode())
-            self._publisher = Publisher(
-                lambda: {'mercure': mercure},
-                lambda: {
-                    'category': self._category,
-                    'demo': self._demo,
-                    'icon': self._icon,
-                    'installationSteps': self._installation_steps,
-                    'instructions': self._instructions,
-                    'name': self._name,
-                    'parameters': [p.to_json() for p in self._parameters],
-                    'sdk': {
-                        'name': 'python',
-                        'version': version('talkops'),
-                    },
-                    'softwareVersion': self._software_version,
-                    'functionSchemas': self._function_schemas,
-                }
-            )
-            Subscriber(
-                lambda: {
-                    'callbacks': self._callbacks,
-                    'extension': self,
-                    'functions': self._functions,
-                    'mercure': mercure,
-                    'parameters': self._parameters,
-                    'publisher': self._publisher,
-                }
-            )
-
         if os.environ.get('ENV') == 'development':
             Readme(
                 lambda: {
@@ -87,11 +57,46 @@ class Extension:
                     'website': self._website,
                 }
             )
+        if self._token:
+            mercure = json.loads(base64.b64decode(self._token).decode())
+            self._publisher = Publisher(
+                lambda: {'mercure': mercure},
+                lambda: {
+                    'category': self._category,
+                    'demo': self._demo,
+                    'icon': self._icon,
+                    'installationSteps': self._installation_steps,
+                    'instructions': self._instructions,
+                    'name': self._name,
+                    'parameters': [p.to_json() for p in self._parameters],
+                    'sdk': {
+                        'name': 'python',
+                        'version': version('talkops'),
+                    },
+                    'softwareVersion': self._software_version,
+                    'functionSchemas': self._function_schemas,
+                }
+            )
+            self._subscriber = Subscriber(
+                lambda: {
+                    'callbacks': self._callbacks,
+                    'extension': self,
+                    'functions': self._functions,
+                    'mercure': mercure,
+                    'parameters': self._parameters,
+                    'publisher': self._publisher,
+                }
+            )
+            await asyncio.gather(
+                self._publisher.start(),
+                self._subscriber.start()
+            )
 
     def start(self):
         if self._started:
             return
         self._started = True
+        nest_asyncio.apply()
         asyncio.run(self._setup())
         return self
 
@@ -172,7 +177,10 @@ class Extension:
     def set_function_schemas(self, function_schemas):
         if (
             not isinstance(function_schemas, list) or
-            not all(isinstance(schema, dict) and schema is not None for schema in function_schemas)
+            not all(
+                isinstance(schema, dict) and
+                schema is not None for schema in function_schemas
+            )
         ):
             raise ValueError('functionSchemas must be an array of non-null objects.')
         self._function_schemas = function_schemas
@@ -189,7 +197,10 @@ class Extension:
         return self
 
     def enable_alarm(self):
-        self._publisher.publish_event({'type': 'alarm'})
+        nest_asyncio.apply()
+        asyncio.run(self._publisher.publish_event({
+            'type': 'alarm'
+        }))
         return self
 
     def send_medias(self, medias):
@@ -197,22 +208,31 @@ class Extension:
             medias = [medias]
         if not all(isinstance(media, Media) for media in medias):
             raise ValueError("medias must be a list of Media instances.")
-        self._publisher.publish_event({
+        nest_asyncio.apply()
+        asyncio.run(self._publisher.publish_event({
             'type': 'medias',
             'medias': [media.to_json() for media in medias]
-        })
+        }))
         return self
 
     def send_message(self, text):
         if not isinstance(text, str) or not text.strip():
             raise ValueError('text must be a non-empty string.')
-        self._publisher.publish_event({ 'type': 'message', 'text': text })
+        nest_asyncio.apply()
+        asyncio.run(self._publisher.publish_event({
+            'type': 'message',
+            'text': text
+        }))
         return self
 
     def send_notification(self, text):
         if not isinstance(text, str) or not text.strip():
             raise ValueError('text must be a non-empty string.')
-        self._publisher.publish_event({ 'type': 'notification', 'text': text })
+        nest_asyncio.apply()
+        asyncio.run(self._publisher.publish_event({
+            'type': 'notification',
+            'text': text
+        }))
         return self
 
     def _get_categories(self):

@@ -3,18 +3,14 @@ from urllib.parse import quote
 import asyncio
 import json
 import sys
-import nest_asyncio
 
 class Subscriber:
     def __init__(self, use_config):
         self._use_config = use_config
-        nest_asyncio.apply()
-        asyncio.run(self._subscribe())
 
-    async def _subscribe(self):
+    async def start(self):
         config = self._use_config()
         mercure = config['mercure']
-
         while True:
             try:
                 async with EventSource(
@@ -25,15 +21,15 @@ class Subscriber:
                     max_connect_retry=9999
                 ) as event_source:
                     async for event in event_source:
-                        self._on_event(json.loads(event.data))
+                        asyncio.create_task(self._on_event(json.loads(event.data)))
             except Exception as e:
                 print(e)
                 await asyncio.sleep(5)
 
-    def _on_event(self, event):
+    async def _on_event(self, event):
         config = self._use_config()
         if event['type'] == 'ping':
-            config['publisher'].on_ping()
+            asyncio.create_task(config['publisher'].on_ping())
             return
         if event['type'] == 'function_call':
             for function in config['functions']:
@@ -45,9 +41,9 @@ class Subscriber:
                 ]
                 output = function(*arguments_list)
                 if asyncio.iscoroutine(output):
-                    output = asyncio.run(output)
+                    output = await asyncio.create_task(output)
                 event['output'] = output
-                config['publisher'].publish_event(event)
+                asyncio.create_task(config['publisher'].publish_event(event))
                 return
             print(f'Function {function.__name__} not found.', file=sys.stderr)
             return
@@ -67,7 +63,7 @@ class Subscriber:
                 if parameter.has_value:
                     continue
                 ready = False
-            config['publisher'].publish_state()
+            asyncio.create_task(config['publisher'].publish_state())
             if not ready:
                 return
         if event['type'] in config['callbacks']:
@@ -75,4 +71,4 @@ class Subscriber:
             arguments_list = [event['args'].get(name) for name in callback.__code__.co_varnames]
             output = callback(*arguments_list)
             if asyncio.iscoroutine(output):
-                asyncio.run(output)
+                asyncio.create_task(output)
