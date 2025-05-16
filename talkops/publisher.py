@@ -1,8 +1,8 @@
 from urllib.parse import urlencode
+import aiofiles.os
 import aiohttp
 import asyncio
 import json
-import sys
 import time
 
 class Publisher:
@@ -11,38 +11,20 @@ class Publisher:
         self._use_state = use_state
         self._last_event_state = None
         self._last_ping_at = None
-
-    async def start(self):
-        self._original_stdout_write = sys.stdout.write
-        self._original_stderr_write = sys.stderr.write
-        def stdout_wrapper(chunk):
-            data = chunk.strip()
-            if(data != ""):
-                asyncio.create_task(self.publish_event({
-                    'type': 'stdout',
-                    'data': data,
-                    'time': time.time()
-                }))
-            return self._original_stdout_write(chunk)
-        def stderr_wrapper(chunk):
-            if "KeyboardInterrupt" not in chunk:
-                data = chunk.strip()
-                if(data != ""):
-                    asyncio.create_task(self.publish_event({
-                        'type': 'stderr',
-                        'data': data,
-                        'time': time.time()
-                    }))
-            return self._original_stderr_write(chunk)
-        sys.stdout.write = stdout_wrapper
-        sys.stderr.write = stderr_wrapper
-
         asyncio.create_task(self._publish_data({'type': 'init'}))
-        await asyncio.sleep(0.5)
-        asyncio.create_task(self._periodic_publish_state())
+        asyncio.create_task(self._publish_state_periodically())
+
+    async def _generate_event_state(self):
+        state = self._use_state()
+        try:
+            stat_result = await aiofiles.os.stat("error.log")
+            state["hasErrors"] = stat_result.st_size > 0
+        except FileNotFoundError:
+            state["hasErrors"] = False
+        return {"type": "state", "state": state}
 
     async def publish_state(self):
-        event = {'type': 'state', 'state': self._use_state()}
+        event = await self._generate_event_state()
         self._last_event_state = json.dumps(event)
         await self.publish_event(event)
 
@@ -76,11 +58,11 @@ class Publisher:
                     raise Exception(f"Failed to publish event: {response.status}")
                 return await response.text()
 
-    async def _periodic_publish_state(self):
+    async def _publish_state_periodically(self):
         while True:
-            event = {'type': 'state', 'state': self._use_state()}
+            await asyncio.sleep(0.5)
+            event = await self._generate_event_state()
             last_event_state = json.dumps(event)
             if self._last_event_state != last_event_state:
-                await self.publish_event(event)
                 self._last_event_state = last_event_state
-            await asyncio.sleep(1.0)
+                asyncio.create_task(self.publish_event(event))

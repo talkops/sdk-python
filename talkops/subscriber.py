@@ -1,4 +1,5 @@
 from aiohttp_sse_client.client import EventSource
+from pathlib import Path
 from urllib.parse import quote
 import asyncio
 import json
@@ -7,8 +8,9 @@ import sys
 class Subscriber:
     def __init__(self, use_config):
         self._use_config = use_config
+        asyncio.create_task(self._subscribe())
 
-    async def start(self):
+    async def _subscribe(self):
         config = self._use_config()
         mercure = config['mercure']
         while True:
@@ -30,6 +32,14 @@ class Subscriber:
         config = self._use_config()
         if event['type'] == 'ping':
             asyncio.create_task(config['publisher'].on_ping())
+            return
+        if event['type'] == 'debug':
+            file_path = 'error.log'
+            file = Path(file_path)
+            event['data'] = file.read_text(encoding='utf-8')
+            if event['data']:
+                asyncio.create_task(config['publisher'].publish_event(event))
+                file.write_text('', encoding='utf-8')
             return
         if event['type'] == 'function_call':
             for function in config['functions']:

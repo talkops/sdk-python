@@ -29,7 +29,6 @@ class Extension:
         self._publisher = None
         self._software_version = None
         self._started = False
-        self._subscriber = None
         self._token = token or os.environ.get('TALKOPS_TOKEN')
         self._website = None
 
@@ -77,7 +76,7 @@ class Extension:
                     'functionSchemas': self._function_schemas,
                 }
             )
-            self._subscriber = Subscriber(
+            Subscriber(
                 lambda: {
                     'callbacks': self._callbacks,
                     'extension': self,
@@ -86,10 +85,6 @@ class Extension:
                     'parameters': self._parameters,
                     'publisher': self._publisher,
                 }
-            )
-            await asyncio.gather(
-                self._publisher.start(),
-                self._subscriber.start()
             )
 
     def start(self):
