@@ -1,23 +1,21 @@
-from importlib.resources import files
-from importlib.metadata import version
-from urllib.parse import urlparse
-from .publisher import Publisher
-from .subscriber import Subscriber
+from .event_bus import EventBus
 from .parameter import Parameter
 from .readme import Readme
 from .manifest import Manifest
 from .media import Media
+from importlib.metadata import version
+from importlib.resources import files
+from urllib.parse import urlparse
 import asyncio
 import json
-import base64
 import nest_asyncio
-import os
 
 class Extension:
-    def __init__(self, token=None):
+    def __init__(self):
         self._callbacks = {}
         self._category = None
         self._demo = False
+        self._event_bus = None
         self._features = []
         self._functions = []
         self._function_schemas = []
@@ -26,66 +24,56 @@ class Extension:
         self._instructions = None
         self._name = None
         self._parameters = []
-        self._publisher = None
         self._software_version = None
         self._started = False
-        self._token = token or os.environ.get('TALKOPS_TOKEN')
         self._website = None
 
     async def _setup(self):
         await asyncio.sleep(0.5)
-        if os.environ.get('ENV') == 'development':
-            Readme(
-                lambda: {
-                    'features': self._features,
-                    'name': self._name,
-                }
-            )
-            Manifest(
-                lambda: {
-                    'category': self._category,
-                    'demo': self._demo,
-                    'features': self._features,
-                    'icon': self._icon,
-                    'name': self._name,
-                    'sdk': {
-                        'name': 'python',
-                        'version': version('talkops'),
-                    },
-                    'softwareVersion': self._software_version,
-                    'website': self._website,
-                }
-            )
-        if self._token:
-            mercure = json.loads(base64.b64decode(self._token).decode())
-            self._publisher = Publisher(
-                lambda: {'mercure': mercure},
-                lambda: {
-                    'category': self._category,
-                    'demo': self._demo,
-                    'icon': self._icon,
-                    'installationSteps': self._installation_steps,
-                    'instructions': self._instructions,
-                    'name': self._name,
-                    'parameters': [p.to_json() for p in self._parameters],
-                    'sdk': {
-                        'name': 'python',
-                        'version': version('talkops'),
-                    },
-                    'softwareVersion': self._software_version,
-                    'functionSchemas': self._function_schemas,
-                }
-            )
-            Subscriber(
-                lambda: {
-                    'callbacks': self._callbacks,
-                    'extension': self,
-                    'functions': self._functions,
-                    'mercure': mercure,
-                    'parameters': self._parameters,
-                    'publisher': self._publisher,
-                }
-            )
+        Readme(
+            lambda: {
+                'features': self._features,
+                'name': self._name,
+            }
+        )
+        Manifest(
+            lambda: {
+                'category': self._category,
+                'demo': self._demo,
+                'features': self._features,
+                'icon': self._icon,
+                'name': self._name,
+                'sdk': {
+                    'name': 'python',
+                    'version': version('talkops'),
+                },
+                'softwareVersion': self._software_version,
+                'website': self._website,
+            }
+        )
+        self._event_bus = EventBus(
+            lambda: {
+                'category': self._category,
+                'demo': self._demo,
+                'icon': self._icon,
+                'installationSteps': self._installation_steps,
+                'instructions': self._instructions,
+                'name': self._name,
+                'parameters': [p.to_json() for p in self._parameters],
+                'sdk': {
+                    'name': 'python',
+                    'version': version('talkops'),
+                },
+                'softwareVersion': self._software_version,
+                'functionSchemas': self._function_schemas,
+            },
+            lambda: {
+                'callbacks': self._callbacks,
+                'functions': self._functions,
+                'parameters': self._parameters,
+            }
+        )
+        await asyncio.gather(self._event_bus.start())
 
     def start(self):
         if self._started:
@@ -193,7 +181,7 @@ class Extension:
 
     def enable_alarm(self):
         nest_asyncio.apply()
-        asyncio.run(self._publisher.publish_event({
+        asyncio.run(self._event_bus.publish_event({
             'type': 'alarm'
         }))
         return self
@@ -204,7 +192,7 @@ class Extension:
         if not all(isinstance(media, Media) for media in medias):
             raise ValueError("medias must be a list of Media instances.")
         nest_asyncio.apply()
-        asyncio.run(self._publisher.publish_event({
+        asyncio.run(self._event_bus.publish_event({
             'type': 'medias',
             'medias': [media.to_json() for media in medias]
         }))
@@ -214,7 +202,7 @@ class Extension:
         if not isinstance(text, str) or not text.strip():
             raise ValueError('text must be a non-empty string.')
         nest_asyncio.apply()
-        asyncio.run(self._publisher.publish_event({
+        asyncio.run(self._event_bus.publish_event({
             'type': 'message',
             'text': text
         }))
@@ -224,7 +212,7 @@ class Extension:
         if not isinstance(text, str) or not text.strip():
             raise ValueError('text must be a non-empty string.')
         nest_asyncio.apply()
-        asyncio.run(self._publisher.publish_event({
+        asyncio.run(self._event_bus.publish_event({
             'type': 'notification',
             'text': text
         }))
