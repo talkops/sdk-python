@@ -29,7 +29,7 @@ class EventBus:
         return {"type": "state", "state": self._use_state()}
 
     async def publish_event(self, event):
-        data = json.dumps(event).encode()
+        data = json.dumps(event, separators=(',', ':')).encode() + b'\n'
         await asyncio.to_thread(self._client.sendall, data)
 
     async def _publish_state(self):

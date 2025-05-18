@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='talkops',
-    version='1.3.3',
+    version='1.3.4',
     author='PicoUX',
     description="TalkOps SDK",
     long_description=open('README.md',encoding='utf-8').read(),
