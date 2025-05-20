@@ -15,6 +15,7 @@ class Extension:
         self._callbacks = {}
         self._category = None
         self._demo = False
+        self._enabled = False
         self._event_bus = None
         self._features = []
         self._functions = []
@@ -24,7 +25,6 @@ class Extension:
         self._instructions = None
         self._name = None
         self._parameters = []
-        self._software_version = None
         self._started = False
         self._website = None
 
@@ -47,7 +47,6 @@ class Extension:
                     'name': 'python',
                     'version': version('talkops'),
                 },
-                'softwareVersion': self._software_version,
                 'website': self._website,
             }
         )
@@ -64,16 +63,19 @@ class Extension:
                     'name': 'python',
                     'version': version('talkops'),
                 },
-                'softwareVersion': self._software_version,
                 'functionSchemas': self._function_schemas,
             },
             lambda: {
                 'callbacks': self._callbacks,
                 'functions': self._functions,
                 'parameters': self._parameters,
-            }
+            },
+            self._set_enabled
         )
         await asyncio.gather(self._event_bus.start())
+
+    def _set_enabled(self, enabled):
+        self._enabled = enabled
 
     def start(self):
         if self._started:
@@ -121,10 +123,6 @@ class Extension:
         except ValueError:
             raise ValueError('website must be a valid URL.')
         self._website = website
-        return self
-
-    def set_software_version(self, software_version):
-        self._software_version = software_version
         return self
 
     def set_category(self, category):
